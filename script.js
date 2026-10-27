@@ -63,13 +63,42 @@ track.onclick = e => { const a = e.target.closest("[data-plan]"); if(a) $("#tour
 let sx = 0; track.addEventListener("touchstart", e => sx = e.touches[0].clientX, {passive:true});
 track.addEventListener("touchend", e => { const d = e.changedTouches[0].clientX - sx; if(Math.abs(d)>50){ idx += d<0 ? 1 : -1; idx = Math.max(0, idx); move(); } });
 
-/* tour form: opens the visitor's email app with details filled in */
-$("#tourForm").onsubmit = e => {
+/* tour form: sends each request to your email through Web3Forms */
+const WEB3FORMS_KEY = "c8a7a1a8-1ca7-47cd-8f80-e5abfc4c889d";
+$("#tourForm").onsubmit = async e => {
   e.preventDefault();
-  const f = Object.fromEntries(new FormData(e.target));
-  const body = `Name: ${f.name}\nPhone: ${f.phone}\nEmail: ${f.email}\nInterest: ${f.topic}\nPreferred date: ${f.date||"Flexible"}\nTour: ${f.type}\n\n${f.msg}`;
-  $("#msg").textContent = "Thanks " + f.name.split(" ")[0] + ". Your email app will open so you can send the request.";
-  location.href = "mailto:info@nsnrkenya.co.ke?subject=" + encodeURIComponent("Viewing request: " + f.topic) + "&body=" + encodeURIComponent(body);
+  const form = e.target, btn = form.querySelector("button[type=submit]"), out = $("#msg");
+  const f = Object.fromEntries(new FormData(form));
+  const first = f.name.split(" ")[0];
+
+  btn.disabled = true; btn.textContent = "Sending...";
+  out.textContent = "";
+  try{
+    const res = await fetch("https://api.web3forms.com/submit", {
+      method: "POST",
+      headers: {"Content-Type":"application/json", "Accept":"application/json"},
+      body: JSON.stringify({
+        access_key: WEB3FORMS_KEY,
+        subject: "New viewing request from " + f.name,
+        from_name: "NSNR Website",
+        name: f.name,
+        email: f.email,
+        phone: f.phone,
+        interested_in: f.topic,
+        preferred_date: f.date || "Flexible",
+        tour_type: f.type,
+        message: f.msg || "(no message)"
+      })
+    });
+    const data = await res.json();
+    if(res.ok && data.success){
+      out.textContent = "Thank you " + first + "! We received your request and will contact you soon.";
+      form.reset();
+    } else { throw new Error(data.message || "Failed"); }
+  } catch(err){
+    out.textContent = "Sorry, something went wrong. Please try again in a moment.";
+  }
+  btn.disabled = false; btn.textContent = "Request viewing";
 };
 $("#tourForm [name=date]").min = new Date().toISOString().split("T")[0];
 render();
